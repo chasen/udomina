@@ -3,26 +3,18 @@ var canvas = {
     grid: document.getElementById('grid'),
     ui: document.getElementById('ui')
 };
-
 var ctx = {
     stage: canvas.stage.getContext('2d'),
     grid: canvas.grid.getContext('2d'),
     ui: canvas.ui.getContext('2d')
 };
-
 var stageBoundingRect;
 var gameAnimationFrame;
-var inherits = require('util').inherits;
-var EventEmitter = require('events').EventEmitter;
-
-
 function resizeCanvas () {
     for (var name in canvas) {
         canvas[name].width = window.innerWidth;
         canvas[name].height = window.innerHeight;
     }
-
-    //drawGrid(ctx.grid);
     stageBoundingRect = canvas.stage.getBoundingClientRect();
 }
 window.addEventListener('resize', resizeCanvas, false);
@@ -33,6 +25,8 @@ canvas.stage.addEventListener('contextmenu', function (event) {
     return false;
 });
 
+var socket = io();
+
 var players = [
     {id: 0, name: 'Uncontrolled', color: 'white'},
     {id: 1, name: 'Chase', color: 'blue'},
@@ -40,17 +34,14 @@ var players = [
 ];
 
 var attacks = [];
-inherits(Attack, EventEmitter);
-module.exports = Attack;
-function Attack(ships, fromPlanet, toPlanet){
+var Attack = function (ships, fromPlanet, toPlanet){
     console.log('started at',new Date());
     this.ships = ships;
-    this.player = players[planets[fromPlanet].controlledBy];
+    this.player = planets[fromPlanet].controlledBy;
     this.fromPlanet = fromPlanet;
     this.toPlanet = toPlanet;
     this.x=planets[fromPlanet].x;
     this.y=planets[fromPlanet].y;
-    this.size = 20;
     this.update = function(timeSinceLastUpdate){
         var speed = 50;
         var dx = planets[this.toPlanet].x - this.x;
@@ -89,14 +80,14 @@ function Attack(ships, fromPlanet, toPlanet){
 
     this.draw = function(ctx){
         ctx.beginPath();
-        ctx.fillStyle = players[planets[this.fromPlanet].controlledBy].color;
+        ctx.fillStyle = players[this.player].color;
         ctx.arc(this.x, this.y,this.size,0,2*Math.PI,false);
         ctx.closePath();
         ctx.fill();
         ctx.fillStyle = 'black';
         ctx.fillText(this.ships,this.x, this.y);
     };
-}
+};
 
 var planet = function(ships, size, x, y, player){
     this.controlledBy = player;
@@ -104,8 +95,7 @@ var planet = function(ships, size, x, y, player){
     this.size= size;
     this.x= x;
     this.y = y;
-    this.nextShipsTimer = 1;
-    this.nextShipsIn = this.nextShipsTimer;
+    this.active = false;
     this.attack = function(planet){
         console.log('Attacking planet '+planet);
         var shipsToSend = Math.floor(this.ships/2);
@@ -117,27 +107,23 @@ var planet = function(ships, size, x, y, player){
     this.update= function(timeSinceLastUpdate){
         //is this planet controlled by a player? if not dont add ships
         if(this.controlledBy > 0) {
-            if (this.nextShipsIn > 0) {
-                this.nextShipsIn -= timeSinceLastUpdate;
-            }
-            else {
-                this.ships += this.size;
-                this.nextShipsIn = this.nextShipsTimer;
-            }
+            this.ships += this.size *timeSinceLastUpdate;
         }
     };
     this.draw = function(ctx){
         ctx.beginPath();
         ctx.arc(this.x,this.y,this.size*10,0,2*Math.PI,false);
         ctx.fillStyle = this.controlledBy !== 'undefined'?players[this.controlledBy].color:'white';
+        if(this.active){
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = 'white';
+            ctx.stroke()
+        }
         ctx.fill();
 
         ctx.fillStyle = 'black';
         ctx.fillText('Ships:', this.x-15, this.y);
-        ctx.fillText(this.ships, this.x-5, this.y+15);
-        if(this.controlledBy > 0) {
-            ctx.fillText('Next Ships: ' + this.nextShipsIn.toFixed(0), this.x - 25, this.y + 30);
-        }
+        ctx.fillText(this.ships.toFixed(0), this.x-5, this.y+15);
     };
 };
 var planets = require('./pregenerated_planets')(planet,players);
@@ -177,7 +163,15 @@ function gameLoop () {
 
     render(lag / UPDATE_INTERVAL);
 }
-gameAnimationFrame = window.requestAnimationFrame(gameLoop);
+socket.on('connect', function () {
+    var username = prompt('Username');
+    var password = prompt('Game ID');
+    socket.emit('join game', {'gamePassword':password,'username':username});
+});
+socket.on('start game',function(){
+    gameAnimationFrame = window.requestAnimationFrame(gameLoop);
+});
+
 
 var game = {
     tick: 0,
@@ -191,7 +185,22 @@ var game = {
         blockType: 0,
         isDrawing: false
     },
-    activePlanet: null
+    activePlanet: null,
+    setActivePlanet: function(planet){
+        this.activePlanet = planet;
+        for(var i=0;i<planets.length;i++){
+            if(i !== planet){
+                planets[i].active=false;
+            }
+        }
+        planets[planet].active = true;
+    },
+    unsetActivePlanet: function(){
+        this.activePlanet = null;
+        for(var i=0;i<planets.length;i++){
+            planets[i].active=false;
+        }
+    }
 };
 
 
@@ -200,7 +209,7 @@ function getMousePos (event) {
 }
 function getClickedPlanet(event){
     for(var i=0;i<planets.length;i++){
-        if(Math.sqrt((planets[i].x - event.clientX)*(planets[i].x - event.clientX) + (planets[i].x - event.clientX)*(planets[i].x - event.clientX)) <= planets[i].size*10){
+        if(Math.sqrt((planets[i].x - event.clientX)*(planets[i].x - event.clientX) + (planets[i].y - event.clientY)*(planets[i].y - event.clientY)) <= planets[i].size*10){
             console.log('you clicked the planet',i);
             return i;
         }
@@ -209,11 +218,34 @@ function getClickedPlanet(event){
     return false;
 }
 
-var gridHeight = Math.ceil(canvas.stage.height / game.gridNodeHeight);
-var gridWidth = Math.ceil(canvas.stage.width / game.gridNodeWidth);
-//var grid = require('./grid')(gridWidth, gridHeight);
-
-var scratch = [];
+function checkVictoryConditions()
+{
+    var curPlayer = false;
+    for(var i = 0; i<planets.length;i++){
+        if(curPlayer === false){
+            curPlayer = planets[i].controlledBy
+        }
+        else if(curPlayer != planets[i].controlledBy) {
+            return false;
+        }
+    }
+    for(var j=0; j<attacks.length; j++){
+        if(curPlayer === false){
+            curPlayer = attacks[j].player;
+        }
+        else if(curPlayer != attacks[j].player){
+            return false;
+        }
+    }
+    if(curPlayer !== false){
+        ctx.ui.clearRect(0, 0, canvas.ui.width, canvas.ui.height);
+        ctx.ui.font = 'bold 50pt Arial';
+        ctx.ui.fillStyle = players[curPlayer].color;
+        var vicortyString = players[curPlayer].name+' is Victorious'
+        ctx.ui.fillText(vicortyString,canvas.ui.width/2-vicortyString.length,canvas.ui.height/2-50);
+        window.cancelAnimationFrame(gameAnimationFrame);
+    }
+}
 
 function update (dt) {
     for(var i = 0; i<planets.length;i++){
@@ -233,6 +265,7 @@ function render (t) {
     for(var j=0; j<attacks.length; j++){
         attacks[j].draw(ctx.stage);
     }
+    checkVictoryConditions();
 
 
     ctx.ui.clearRect(0, 0, canvas.ui.width, canvas.ui.height);
@@ -256,22 +289,28 @@ function handleMouseInput (event) {
         var clickedPlanet = getClickedPlanet(event);
         if(clickedPlanet !== false) {
             if (game.activePlanet === null) {
-                console.log('setting active planet',clickedPlanet);
-                game.activePlanet = clickedPlanet;
+                if(planets[clickedPlanet].controlledBy === 0){
+                    console.log('You cant control that planet, deactivating');
+                    game.unsetActivePlanet();
+                }
+                else {
+                    console.log('setting active planet', clickedPlanet);
+                    game.setActivePlanet(clickedPlanet);
+                }
             }
             else if(game.activePlanet !== clickedPlanet) {
                 console.log('starting attack from',game.activePlanet,'to',clickedPlanet);
                 planets[game.activePlanet].attack(clickedPlanet);
-                game.activePlanet = null;
+                game.unsetActivePlanet();
             }
             else{
                 console.log('you clicked the same planet, deactivating');
-                game.activePlanet = null;
+                game.unsetActivePlanet();
             }
         }
         else{
             console.log('clearing active planet');
-            game.activePlanet = null;
+            game.unsetActivePlanet();
         }
     }
 
