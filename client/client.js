@@ -163,17 +163,9 @@ function gameLoop () {
 
     render(lag / UPDATE_INTERVAL);
 }
-socket.on('connect', function () {
-    var username = prompt('Username');
-    var password = prompt('Game ID');
-    socket.emit('join game', {'gamePassword':password,'username':username});
-});
-socket.on('start game',function(){
-    gameAnimationFrame = window.requestAnimationFrame(gameLoop);
-});
-
 
 var game = {
+    id: null,
     tick: 0,
     gridNodeWidth: 10,
     gridNodeHeight: 10,
@@ -202,6 +194,20 @@ var game = {
         }
     }
 };
+
+socket.on('connect', function () {
+    var username = prompt('Username');
+    var password = prompt('Game ID');
+    socket.emit('join game', {'gamePassword':password,'username':username});
+});
+socket.on('game joined',function(gameId){
+    console.log('joined game',gameId);
+    game.id = gameId;
+});
+socket.on('start game',function(){
+    console.log('starting game');
+    gameAnimationFrame = window.requestAnimationFrame(gameLoop);
+});
 
 
 function getMousePos (event) {

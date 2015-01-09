@@ -15,13 +15,17 @@ server.listen(process.env.PORT || 5000, function () {});
 var games = [];
 var Game = function(password,username){
     this.password = password;
-    this.createdBy= username;
     this.players = [];
-    this.players.push(username);
+    this.addPlayer = function(player){
+        this.players.push(player)
+    };
+    this.removePlayer = function(player){
+        this.players.splice(this.players.indexOf(player),1);
+    };
 };
 
 var players = [];
-var player = function(name){
+var Player = function(name){
     this.name = name;
 };
 
@@ -34,24 +38,31 @@ function getGameIndexByPassword(password){
     return false
 }
 
+function registerPlayer(username){
+    var player = new Player(username);
+    players.push(player);
+    return players.indexOf(player);
+}
+
 
 io.on('connection',function(socket){
-    socket.on('register player',function(player){
-        socket.player = player;
-        players.push(player);
-    });
     socket.on('join game',function(data){
-        var gameId = getGameIndexByPassword(data.gamePassword);
-        if(gameId === false){
-            var game = new Game(data.gamePassword, data.username);
+        console.log(data);
+        socket.gameId = getGameIndexByPassword(data.gamePassword);
+        socket.playerId = registerPlayer(data.username);
+        if(socket.gameId === false){
+            var game = new Game(data.gamePassword);
+            game.addPlayer(socket.player);
             games.push(game);
-            gameId = games.indexOf(game);
+            socket.gameId = games.indexOf(game);
         }
-        socket.password = data.gamePassword;
-        socket.join(data.gamePassword);
-        socket.broadcast.to(data.gamePassword).emit('game joined',games.indexOf(game));
-        if(games[gameId].players.length == 2){
-            socket.broadcast.to(data.gamePassword).emit('start game');
+        else{
+            games[socket.gameId].addPlayer(socket.player);
+        }
+        socket.join(socket.gameId);
+        socket.emit('game joined',socket.gameId);
+        if(games[socket.gameId].players.length == 2){
+            socket.broadcast.to(socket.gameId).emit('start game');
         }
     });
     socket.on('attack',function(data){
