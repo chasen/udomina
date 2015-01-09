@@ -45,55 +45,57 @@ module.exports = Attack;
 function Attack(ships, fromPlanet, toPlanet){
     console.log('started at',new Date());
     this.ships = ships;
+    this.player = players[planets[fromPlanet].controlledBy];
     this.fromPlanet = fromPlanet;
     this.toPlanet = toPlanet;
     this.x=planets[fromPlanet].x;
     this.y=planets[fromPlanet].y;
-    this.timeSinceLastMove = 1;
+    this.size = 20;
     this.update = function(timeSinceLastUpdate){
-        if(this.timeSinceLastMove > 0){
-            this.timeSinceLastMove -= timeSinceLastUpdate;
-        }
-        else {
-            this.timeSinceLastMove = 1;
-            var speed = 5;
-            var dx = planets[this.toPlanet].x - this.x;
-            var dy = planets[this.toPlanet].y - this.y;
-            var distance = Math.sqrt(dx*dx+dy*dy);
-            var moves = distance/speed;
-            console.log(moves);
-            var xunits = ((planets[this.toPlanet].x - this.x)/moves).toFixed(0);
-            var yunits = ((planets[this.toPlanet].y - this.y)/moves).toFixed(0);
-            this.x += xunits;
-            this.y += yunits;
-            if (this.arrived()) {
-                this.doBattle();
-            }
+        var speed = 50;
+        var dx = planets[this.toPlanet].x - this.x;
+        var dy = planets[this.toPlanet].y - this.y;
+        var distance = Math.sqrt(dx*dx+dy*dy);
+        this.x += (dx / distance) * speed * timeSinceLastUpdate;
+        this.y += (dy / distance) * speed * timeSinceLastUpdate;
+        if (this.arrived()) {
+            this.doBattle();
         }
     };
     this.arrived = function(){
-        if(this.x === this.toPlanet.x && this.y === this.toPlanet.y){
+        if(Math.abs(planets[this.toPlanet].x - this.x) <= (planets[this.toPlanet].size*10 + this.size) && Math.abs(planets[this.toPlanet].y - this.y) <= (planets[this.toPlanet].size*10 + this.size)){
             console.log('arrived',new Date());
             return true;
         }
         return false;
     };
     this.doBattle = function(){
-        this.emit('finished',this);
+        //do we controll the planet?
+        if(planets[this.toPlanet].controlledBy === this.player){
+            planets[this.toPlanet].ships += this.ships;
+        }
+        //Nope lets get EM!
+        else{
+            planets[this.toPlanet].ships -= this.ships;
+        }
+        //we took over the planet!
+        if(planets[this.toPlanet].ships < 0){
+            planets[this.toPlanet].controlledBy = this.player;
+            planets[this.toPlanet].ships = Math.abs(planets[this.toPlanet].ships);
+        }
+        //stop the attack
+        attacks.splice(attacks.indexOf(this),1);
     };
 
     this.draw = function(ctx){
         ctx.beginPath();
-        ctx.fillStyle = 'white';
-        ctx.arc(this.x, this.y,30,0,2*Math.PI,false);
+        ctx.fillStyle = players[planets[this.fromPlanet].controlledBy].color;
+        ctx.arc(this.x, this.y,this.size,0,2*Math.PI,false);
         ctx.closePath();
         ctx.fill();
         ctx.fillStyle = 'black';
-        ctx.fillText(this.ships,this.x-10, this.y);
+        ctx.fillText(this.ships,this.x, this.y);
     };
-    this.on('finished',function(attack){
-        attacks.slice(attacks.indexOf(attack),1);
-    });
 }
 
 var planet = function(ships, size, x, y, player){
@@ -102,7 +104,8 @@ var planet = function(ships, size, x, y, player){
     this.size= size;
     this.x= x;
     this.y = y;
-    this.nextShipsIn = 1;
+    this.nextShipsTimer = 1;
+    this.nextShipsIn = this.nextShipsTimer;
     this.attack = function(planet){
         console.log('Attacking planet '+planet);
         var shipsToSend = Math.floor(this.ships/2);
@@ -114,12 +117,12 @@ var planet = function(ships, size, x, y, player){
     this.update= function(timeSinceLastUpdate){
         //is this planet controlled by a player? if not dont add ships
         if(this.controlledBy > 0) {
-            if (this.nextShipsIn - timeSinceLastUpdate > 0) {
-                this.nextShipsIn = this.nextShipsIn - timeSinceLastUpdate;
+            if (this.nextShipsIn > 0) {
+                this.nextShipsIn -= timeSinceLastUpdate;
             }
             else {
                 this.ships += this.size;
-                this.nextShipsIn = 5;
+                this.nextShipsIn = this.nextShipsTimer;
             }
         }
     };
@@ -131,7 +134,7 @@ var planet = function(ships, size, x, y, player){
 
         ctx.fillStyle = 'black';
         ctx.fillText('Ships:', this.x-15, this.y);
-        ctx.fillText(this.ships, this.x-15, this.y+15);
+        ctx.fillText(this.ships, this.x-5, this.y+15);
         if(this.controlledBy > 0) {
             ctx.fillText('Next Ships: ' + this.nextShipsIn.toFixed(0), this.x - 25, this.y + 30);
         }
@@ -256,9 +259,14 @@ function handleMouseInput (event) {
                 console.log('setting active planet',clickedPlanet);
                 game.activePlanet = clickedPlanet;
             }
-            else {
+            else if(game.activePlanet !== clickedPlanet) {
                 console.log('starting attack from',game.activePlanet,'to',clickedPlanet);
                 planets[game.activePlanet].attack(clickedPlanet);
+                game.activePlanet = null;
+            }
+            else{
+                console.log('you clicked the same planet, deactivating');
+                game.activePlanet = null;
             }
         }
         else{
