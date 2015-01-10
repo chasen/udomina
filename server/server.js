@@ -3,40 +3,89 @@ var app = express();
 var server = require('http').Server(app);
 var path = require('path');
 var io = require('socket.io')(server);
+var crypto = require('crypto');
+var env = process.env.NODE_ENV || 'development';
+var config = require('./config')[env];
+var bodyParser = require('body-parser');
+var Sequelize = require('sequelize')
+    , sequelize = new Sequelize(config.database.db, config.database.user, config.database.password, {
+        host: config.database.host,
+        dialect: "mysql",
+        port:    config.database.port
+    });
 
+var Game = sequelize.import(__dirname + "/../models/game");
+var User = sequelize.import(__dirname + "/../models/user");
+User.belongsToMany(Game, {as: 'Players', through: 'Games_Users'});
+Game.belongsToMany(User, {as: 'Games', through: 'Games_Users'});
+Game.hasOne(User, {as: 'winner'});
+sequelize.sync({force:true}).complete(function(err) {
+    if (!!err) {
+        console.log('An error occurred while creating the table:', err)
+    } else {
+        console.log('DB Loaded!')
+    }
+});
+
+function createSha256Hash(input){
+    return crypto.createHash('sha256').update(input).digest('hex')
+}
+
+app.use( bodyParser.json() );       // to support JSON-encoded bodies
+app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
+    extended: true
+}));
 app.use(express.static('public'));
 app.get('/js/client.js', require('browserify-middleware')('./client/client.js'));
+app.post('/register',function(req, res){
+    if(req.body.password === req.body.password_repeated){
+        User.create({
+            'email':req.body.email,
+            'password': createSha256Hash(req.body.password),
+            'color': req.body.color
+        }).complete(function(err,user){
+            return res.send(user.uuid);
+        })
+    }
+    else{
+        return res.status(400).send({'message': 'Passwords must match'});
+    }
+
+});
+app.post('/login',function(req, res){
+    User.find({ where: {email: req.body.email}}).then(function(user){
+        if(user !== null){
+            if(createSha256Hash(req.body.password) === user.password){
+                return res.send(user.uuid);
+            }
+            else{
+                return res.status(400).send({'message':'Invalid Password'})
+            }
+        }
+        else{
+            return res.status(400).send({'message':'Invalid email'})
+        }
+    });
+});
+app.get('/games',function(req, res){
+    res.send(games)
+});
+app.post('/create-game',function(req,res){
+    Game.create({
+
+    })
+});
 app.get('/', function (req, res) {
     res.sendFile(path.resolve(__dirname + '/../templates/index.html'));
 });
 
 server.listen(process.env.PORT || 5000, function () {});
 
+
+
+
 var games = [];
-var Game = function(password,username){
-    this.password = password;
-    this.players = [];
-    this.addPlayer = function(player){
-        this.players.push(player)
-    };
-    this.removePlayer = function(player){
-        this.players.splice(this.players.indexOf(player),1);
-    };
-};
 
-var players = [];
-var Player = function(name){
-    this.name = name;
-};
-
-function getGameIndexByPassword(password){
-    for(var i=0; i<games.length;i++){
-        if(games[i].password === password){
-            return i;
-        }
-    }
-    return false
-}
 
 function registerPlayer(username){
     var player = new Player(username);

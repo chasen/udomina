@@ -40,6 +40,7 @@ var Attack = function (ships, fromPlanet, toPlanet){
     this.player = planets[fromPlanet].controlledBy;
     this.fromPlanet = fromPlanet;
     this.toPlanet = toPlanet;
+    this.size = this.ships;
     this.x=planets[fromPlanet].x;
     this.y=planets[fromPlanet].y;
     this.update = function(timeSinceLastUpdate){
@@ -102,7 +103,6 @@ var planet = function(ships, size, x, y, player){
         var newAttack = new Attack(shipsToSend,planets.indexOf(this),planet);
         this.ships -= shipsToSend;
         attacks.push(newAttack);
-        console.log(attacks);
     };
     this.update= function(timeSinceLastUpdate){
         //is this planet controlled by a player? if not dont add ships
@@ -195,19 +195,20 @@ var game = {
     }
 };
 
-socket.on('connect', function () {
-    var username = prompt('Username');
-    var password = prompt('Game ID');
-    socket.emit('join game', {'gamePassword':password,'username':username});
-});
-socket.on('game joined',function(gameId){
-    console.log('joined game',gameId);
-    game.id = gameId;
-});
-socket.on('start game',function(){
-    console.log('starting game');
-    gameAnimationFrame = window.requestAnimationFrame(gameLoop);
-});
+//socket.on('connect', function () {
+//    var username = prompt('Username');
+//    var password = prompt('Game ID');
+//    socket.emit('join game', {'gamePassword':password,'username':username});
+//});
+//socket.on('game joined',function(gameId){
+//    console.log('joined game',gameId);
+//    game.id = gameId;
+//});
+//socket.on('start game',function(){
+//    console.log('starting game');
+//    gameAnimationFrame = window.requestAnimationFrame(gameLoop);
+//});
+gameAnimationFrame = window.requestAnimationFrame(gameLoop);
 
 
 function getMousePos (event) {

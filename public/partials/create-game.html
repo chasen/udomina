@@ -1,0 +1,11 @@
+<form method="post" action="/create-game">
+    <input type="text" name="number_of_players" placeholder="# of Players(1-4)"/>
+    <input type="text" name="min_planets" placeholder="Minimum # of Planets(lowest = 2x #of Players )"/>
+    <input type="text" name="max_planets" placeholder="Maximum # of Planets(max = 5x #of Players)"/>
+    <label>
+        <input type="checkbox" name="is_public" ng-model="is_public" ng-init="is_public=true"/>
+        Public
+    </label>
+    <input type="text" name="password" ng-if="!is_public" placeholder="Games Password" />
+    <input type="submit" value="Create">
+</form>

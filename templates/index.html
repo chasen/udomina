@@ -1,15 +1,15 @@
 <!doctype html>
-<html>
+<html ng-app="Udomina">
 <head>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap-theme.min.css">
     <link rel="stylesheet" href="/css/app.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.8/angular.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-router/0.2.13/angular-ui-router.js"></script>
+    <script src="/js/Udomina.js"></script>
 </head>
-<body>
-    <div id="game-container">
-        <canvas class="game-canvas" id="stage"></canvas>
-        <canvas class="game-canvas" id="grid"></canvas>
-        <canvas class="game-canvas" id="ui"></canvas>
-    </div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/js/client.js"></script>
+<body ng-controller="ApplicationController">
+    <div class="container-fluid" ui-view></div>
+
 </body>
 </html>
