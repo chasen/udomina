@@ -9,7 +9,8 @@
     <script src="/js/Udomina.js"></script>
 </head>
 <body ng-controller="ApplicationController">
+    <div class="alert alert-danger" ng-if="alert.length > 0">{{alert}}</div>
     <div class="container-fluid" ui-view></div>
-
+    <div login-dialog ng-if="!isLoginPage"></div>
 </body>
 </html>

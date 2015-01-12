@@ -19,7 +19,9 @@ var User = sequelize.import(__dirname + "/../models/user");
 User.belongsToMany(Game, {as: 'Players', through: 'Games_Users'});
 Game.belongsToMany(User, {as: 'Games', through: 'Games_Users'});
 Game.hasOne(User, {as: 'winner'});
-sequelize.sync({force:true}).complete(function(err) {
+sequelize.sync(
+    //{force:true}
+).complete(function(err) {
     if (!!err) {
         console.log('An error occurred while creating the table:', err)
     } else {
@@ -38,12 +40,15 @@ app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
 app.use(express.static('public'));
 app.get('/js/client.js', require('browserify-middleware')('./client/client.js'));
 app.post('/register',function(req, res){
-    if(req.body.password === req.body.password_repeated){
+    if(req.body.password === req.body.repeated_password){
         User.create({
             'email':req.body.email,
             'password': createSha256Hash(req.body.password),
             'color': req.body.color
         }).complete(function(err,user){
+            if(err){
+                return res.status(400).send({message: err.message});
+            }
             return res.send(user.uuid);
         })
     }
@@ -71,9 +76,15 @@ app.get('/games',function(req, res){
     res.send(games)
 });
 app.post('/create-game',function(req,res){
-    Game.create({
-
-    })
+    Game.create(req.body)
+        .complete(function(err,game){
+            if(err){
+                res.status(400).send({message: "Game creation failed: "+err.message})
+            }
+            else{
+                res.send(game);
+            }
+        });
 });
 app.get('/', function (req, res) {
     res.sendFile(path.resolve(__dirname + '/../templates/index.html'));

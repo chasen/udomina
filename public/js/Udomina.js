@@ -1,10 +1,10 @@
 var Udomina = angular.module('Udomina',['ui.router']);
 
 Udomina.config(function($stateProvider, $urlRouterProvider){
-    $urlRouterProvider.otherwise("/");
+    $urlRouterProvider.otherwise("login");
     $stateProvider
         .state('index',{
-            url: '',
+            url: '/menu',
             templateUrl: 'partials/index.html'
         })
         .state('login',{
@@ -37,96 +37,100 @@ Udomina.config(function($stateProvider, $urlRouterProvider){
             templateUrl: 'partials/stats.html'
         })
 });
-Udomina.controller('ApplicationController',function ($scope){
+Udomina.run(["$rootScope", "$state", function($rootScope, $state, AuthService){
+    console.log(AuthService);
+    $rootScope.$on('$stateChangeStart', function(event, toState, toParams, fromState, fromParams){
+        if(toState.name !== 'login' && toState.name !== 'register'){
+            if(!AuthService || !AuthService.isAuthenticated()){
+                event.preventDefault();
+                $state.go('login');
+            }
+        }
+    })
+}])
 
+Udomina.factory('AuthService',["$http","$window",function($http,$window){
+    var currentUser ={};
+
+    function login(credentials){
+        $http.post('/login',credentials)
+            .success(function(data,status,headers,config){
+                currentUser = {
+                    uuid: data,
+                    email: credentials.email
+                };
+                $window.sessionStorage["currentUser"] = JSON.stringify(currentUser);
+                return currentUser;
+            })
+            .error(function(data, status, headers, config){
+                return { error:true, message: data}
+            });
+    }
+
+    function getCurrentUser(){
+        return currentUser;
+    };
+    function isAuthenticated(){
+        return !!currentUser.uuid;
+    }
+    function logout(){
+        $window.sessionStorage["currentUser"] = null;
+        currentUser = {};
+    }
+    function init(){
+        if ($window.sessionStorage["currentUser"]) {
+            currentUser = JSON.parse($window.sessionStorage["currentUser"]);
+        }
+    }
+    init();
+    return {
+        login: login,
+        logout: logout,
+        getCurrentUser: getCurrentUser,
+        isAuthenticated: isAuthenticated
+    }
+}]);
+
+Udomina.controller('ApplicationController',function ($scope, $http, $state, AuthService){
+    $scope.currentUser = AuthService.getCurrentUser();
+    $scope.alert = '';
+
+    $scope.loginFormData = {};
+    $scope.loginForm = function(){
+        $scope.currentUser = AuthService.login($scope.loginFormData);
+        $state.go('index');
+    }
+
+    $scope.createGameData = {};
+    $scope.createGameForm = function(){
+        $http.post('/create-game',$scope.createGameData)
+            .success(function(data,status,headers,config){
+                $scope.user.uuid = data;
+                $scope.user.email = $scope.loginFormData.email;
+                $scope.alert ='';
+                $state.go('index');
+            })
+            .error(function(data, status, headers, config){
+                $scope.alert = data.message;
+            });
+    }
 });
 
 
-//
-//Udomina.constant('AUTH_EVENTS', {
-//    loginSuccess: 'auth-login-success',
-//    loginFailed: 'auth-login-failed',
-//    logoutSuccess: 'auth-logout-success',
-//    sessionTimeout: 'auth-session-timeout',
-//    notAuthenticated: 'auth-not-authenticated',
-//    notAuthorized: 'auth-not-authorized'
-//});
-//
-//Udomina.constant('USER_ROLES',{
-//    all: '*',
-//    admin: 'admin',
-//    member: 'member',
-//    guest: 'guest'
-//});
-//
-//
-//Udomina.controller('LoginController', function ($scope, $rootScope, AUTH_EVENTS, AuthService) {
-//    $scope.credentials = {
-//        username: '',
-//        password: ''
-//    };
-//    $scope.login = function (credentials) {
-//        AuthService.login(credentials).then(function (user) {
-//            $rootScope.$broadcast(AUTH_EVENTS.loginSuccess);
-//            $scope.setCurrentUser(user);
-//        }, function () {
-//            $rootScope.$broadcast(AUTH_EVENTS.loginFailed);
-//        });
-//    };
-//});
-//
-//Udomina.service('Session', function () {
-//    this.create = function (sessionId, userId, userRole) {
-//        this.id = sessionId;
-//        this.userId = userId;
-//        this.userRole = userRole;
-//    };
-//    this.destroy = function () {
-//        this.id = null;
-//        this.userId = null;
-//        this.userRole = null;
-//    };
-//    return this;
-//});
-//
-//Udomina.controller('ApplicationController', function ($scope, USER_ROLES, AuthService) {
-//    $scope.currentUser = null;
-//    $scope.userRoles = USER_ROLES;
-//    $scope.isAuthorized = AuthService.isAuthorized;
-//
-//    $scope.setCurrentUser = function (user) {
-//        $scope.currentUser = user;
-//    };
-//});
-//
-//Udomina.controller('gameCtrl',['$scope','$routeParams','$http'],function($scope, $routeParams, $http){
-//
-//});
-//
-//Udomina.factory('AuthService', function ($http, Session) {
-//    var authService = {};
-//
-//    authService.login = function (credentials) {
-//        return $http
-//            .post('/login', credentials)
-//            .then(function (res) {
-//                Session.create(res.data.id, res.data.user.id,
-//                    res.data.user.role);
-//                return res.data.user;
-//            });
-//    };
-//
-//    authService.isAuthenticated = function () {
-//        return !!Session.userId;
-//    };
-//
-//    authService.isAuthorized = function (authorizedRoles) {
-//        if (!angular.isArray(authorizedRoles)) {
-//            authorizedRoles = [authorizedRoles];
-//        }
-//        return (authService.isAuthenticated() &&
-//        authorizedRoles.indexOf(Session.userRole) !== -1);
-//    };
-//
-//    return authService;
-//});
+Udomina.controller('registrationController',function($scope, $http, $state){
+    $scope.registerformData = {};
+    $scope.registerForm = function(){
+        $http.post('/register',$scope.registerformData)
+            .success(function(data, status, headers, config){
+                $scope.currentUser = {
+                    uuid: data,
+                    email: $scope.registerformData.email
+                };
+                $scope.alert ='';
+                $state.go('index');
+            })
+            .error(function(data,status,headers,config){
+                $scope.alert = data.message;
+            });
+    };
+});
