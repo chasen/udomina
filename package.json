@@ -6,7 +6,7 @@
     "dependencies": {
         "express": "^4.10.7",
         "socket.io":"*",
-        "kinetic": "*"
+        "request": "*"
     },
     "devDependencies": {},
     "scripts": {

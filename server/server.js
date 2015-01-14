@@ -3,35 +3,30 @@ var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
 
-server.listen(process.env.PORT || 5000, function () {});
 
-var games = [];
+server.listen(process.env.PORT || 5000, function () {});
+var Game = require('./Game');
+var GameManager = require('./GameManager')(Game);
 
 io.on('connection',function(socket){
     socket.on('join game',function(data) {
         socket.join(data.game.uuid);
-        if (typeof games[data.game.uuid] === 'undefined') {
-            console.log('undefined game id, creating game');
-            console.log(data.game.uuid);
-            games[data.game.uuid] = {
-                players: [data.player]
-            };
-            socket.emit('game joined', []);
+        var game = GameManager.getGameById(data.game.uuid);
+        if (game === false) {
+            game = GameManager.createGame(data.game.uuid);
         }
-        else {
-            io.to(data.game.uuid).emit('player joined', data.player);
-            socket.emit('game joined', games[data.game.uuid].players);
-            games[data.game.uuid].players.push(data.player);
+        game.addPlayer(data.player);
+        console.log(game);
+        socket.emit('game joined');
+        if(game.getPlayers().length == game.map.supportedPlayers){
+            io.to(game.id).emit('start game',game);
         }
-
+        console.log(GameManager.getGames());
     });
-    socket.on('attack',function(data){
+    socket.on('send attack',function(data){
+        var game = GameManager.getGameById(data.game.uuid);
+        if(!game){ return; }
+        io.to(game.id).emit('attack',data.attack);
         console.log(data);
     });
-    socket.on('ready to start game',function(data){
-        io.to(data.game.uuid).emit('start game');
-    });
-    socket.on('send my player info',function(data){
-        io.to(data.game.uuid).emit('player joined',data.player);
-    })
 });
