@@ -4,13 +4,9 @@
     "description": "planet domination game",
     "main": "index.js",
     "dependencies": {
-        "browserify-middleware": "^4.1.0",
         "express": "^4.10.7",
         "socket.io":"*",
-        "sequelize": "*",
-        "mysql":"*",
-        "body-parser":"*",
-        "angular-ui-router": "*"
+        "kinetic": "*"
     },
     "devDependencies": {},
     "scripts": {
